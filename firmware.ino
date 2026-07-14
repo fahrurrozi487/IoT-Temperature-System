@@ -1,24 +1,3 @@
-/*
- * Firmware ESP32 - Smart Temperature AI Agent
- * Baca DHT11, kontrol LED (hijau/kuning/merah) + buzzer via AMBANG LOKAL (deterministik),
- * kirim data ke gateway via HTTP POST, jalankan perintah balik (buzzer_off / buzzer_on).
- *
- * Revisi: tidak lagi pakai relay/kipas. Buzzer aktif otomatis saat level kuning
- * (bip berjeda) dan merah (bunyi terus), bisa di-override manual dari Telegram.
- *
- * Kontrol LED/buzzer sengaja di sini, bukan di LLM (PRD v1.1) -> aman & cepat saat demo.
- *
- * Library (Arduino IDE > Library Manager):
- *   - "DHT11" by Dhruba Saha   (BUKAN "DHT sensor library" Adafruit - beda API)
- *   - ArduinoJson  by Benoit Blanchon
- * Board: pilih board ESP32 kamu (mis. "ESP32 Dev Module").
- *
- * Salin config.example.h -> config.h dan isi sebelum compile.
- *
- * Asumsi buzzer: modul buzzer AKTIF (on/off lewat digitalWrite, bukan piezo pasif
- * yang butuh tone()). Kalau punya buzzer pasif, ganti digitalWrite(PIN_BUZZER, HIGH)
- * jadi tone(PIN_BUZZER, 2000) dan LOW jadi noTone(PIN_BUZZER).
- */
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -28,16 +7,14 @@
 DHT11 dht11(PIN_DHT);
 
 unsigned long lastKirim = 0;
-const char *levelSekarang = "hijau";   // level suhu terakhir (dipakai buzzer tiap loop)
+const char *levelSekarang = "hijau"; 
 
 char gatewayUrl[128];
 String serialLine;
 
-// ---- Override manual buzzer dari Telegram (/buzzer_off, /buzzer_on) ----
+//Override manual buzzer dari Telegram (/buzzer_off, /buzzer_on)
 enum BuzzerOverride { OVERRIDE_NONE, OVERRIDE_FORCE_ON, OVERRIDE_FORCE_OFF };
 BuzzerOverride buzzerOverride = OVERRIDE_NONE;
-// Catatan desain: override otomatis balik ke OVERRIDE_NONE saat level kembali
-// ke "hijau" (normal) - biar mute/tes tidak "nyangkut" ke episode warning berikutnya.
 
 unsigned long buzzerToggleAt = 0;
 bool buzzerBeepState = false;
@@ -55,8 +32,6 @@ const char *levelSuhu(float suhu) {
   return "hijau";
 }
 
-// Dipanggil TIAP iterasi loop() (bukan cuma tiap INTERVAL_KIRIM) supaya pola
-// bip kuning yang berjeda bisa jalan mulus tanpa nge-block pembacaan sensor.
 void updateBuzzer() {
   if (buzzerOverride == OVERRIDE_FORCE_OFF) {
     digitalWrite(PIN_BUZZER, LOW);
@@ -66,7 +41,6 @@ void updateBuzzer() {
     digitalWrite(PIN_BUZZER, HIGH);
     return;
   }
-  // OVERRIDE_NONE -> ikut level otomatis
   if (strcmp(levelSekarang, "merah") == 0) {
     digitalWrite(PIN_BUZZER, HIGH);              // bunyi terus, tanpa putus
   } else if (strcmp(levelSekarang, "kuning") == 0) {
@@ -216,7 +190,7 @@ void setup() {
 
 void loop() {
   handleSerial();
-  updateBuzzer();   // jalan tiap iterasi, ringan & non-blocking
+  updateBuzzer();   
 
   if (millis() - lastKirim < INTERVAL_KIRIM) return;
   lastKirim = millis();
@@ -233,7 +207,7 @@ void loop() {
 
   levelSekarang = levelSuhu(suhu);
   if (strcmp(levelSekarang, "hijau") == 0) {
-    buzzerOverride = OVERRIDE_NONE;   // reset override begitu kembali normal
+    buzzerOverride = OVERRIDE_NONE; 
   }
   setLed(levelSekarang);
 
